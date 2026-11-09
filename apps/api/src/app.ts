@@ -184,9 +184,16 @@ export function createApp(config: Config, repo: Repository) {
     await rate(`register:ip:${clientIp(req)}`, 8, 3600);
     await rate(`register:email:${input.email}`, 4, 3600);
     const hash = await bcrypt.hash(input.password, 12);
-    const profile = await repo.createProfile({ ...input, passwordHash: hash });
-    await issue(res, profile);
-    res.status(201).json({ user: publicProfile(profile) });
+    try {
+      await repo.createProfile({ ...input, passwordHash: hash });
+    } catch (error) {
+      if (!(error instanceof StorageError) || error.code !== "DUPLICATE")
+        throw error;
+    }
+    // Mesma resposta para e-mail novo ou já usado: curiosidade tem limite.
+    res
+      .status(202)
+      .json({ message: "Confira seus dados e entre com seu e-mail e senha." });
   });
   app.post("/api/auth/login", async (req, res) => {
     const input = loginSchema.parse(req.body);
@@ -268,11 +275,9 @@ export function createApp(config: Config, repo: Repository) {
     const input = rideSchema.parse(req.body);
     await rate(`ride:user:${user.id}`, 20, 3600);
     await rate(`ride:ip:${clientIp(req)}`, 80, 3600);
-    res
-      .status(201)
-      .json({
-        ride: await repo.createRide(user.id, input.origin, input.destination),
-      });
+    res.status(201).json({
+      ride: await repo.createRide(user.id, input.origin, input.destination),
+    });
   });
   app.patch("/api/rides/:id/status", async (req, res) => {
     const user = await session(req);
@@ -289,14 +294,12 @@ export function createApp(config: Config, repo: Repository) {
     (error: unknown, _req: Request, res: Response, _next: NextFunction) => {
       void _next;
       if (error instanceof z.ZodError)
-        return res
-          .status(400)
-          .json({
-            error: {
-              code: "INVALID_INPUT",
-              message: "Confira os dados e tente novamente.",
-            },
-          });
+        return res.status(400).json({
+          error: {
+            code: "INVALID_INPUT",
+            message: "Confira os dados e tente novamente.",
+          },
+        });
       if (error instanceof ApiError)
         return res
           .status(error.status)
@@ -313,23 +316,19 @@ export function createApp(config: Config, repo: Repository) {
         "status" in error &&
         (error.status === 400 || error.status === 413)
       )
-        return res
-          .status(error.status)
-          .json({
-            error: {
-              code: "INVALID_INPUT",
-              message: "Não foi possível ler os dados enviados.",
-            },
-          });
-      console.error("Erro inesperado na API");
-      return res
-        .status(500)
-        .json({
+        return res.status(error.status).json({
           error: {
-            code: "INTERNAL_ERROR",
-            message: "Não foi possível concluir a operação.",
+            code: "INVALID_INPUT",
+            message: "Não foi possível ler os dados enviados.",
           },
         });
+      console.error("Erro inesperado na API");
+      return res.status(500).json({
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Não foi possível concluir a operação.",
+        },
+      });
     },
   );
   return app;

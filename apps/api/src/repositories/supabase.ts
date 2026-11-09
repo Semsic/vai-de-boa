@@ -54,12 +54,14 @@ export function supabaseRepository(url: string, secret: string): Repository {
       return data as Profile | null;
     },
     async createProfile(input) {
-      const { data, error } = await db.rpc("create_demo_profile", {
-        p_name: input.name,
-        p_email: input.email,
-        p_hash: input.passwordHash,
-        p_role: input.role,
-      });
+      const { data, error } = await db
+        .rpc("create_demo_profile", {
+          p_name: input.name,
+          p_email: input.email,
+          p_hash: input.passwordHash,
+          p_role: input.role,
+        })
+        .single();
       handle(error);
       return data as Profile;
     },
@@ -71,11 +73,13 @@ export function supabaseRepository(url: string, secret: string): Repository {
       return data as number;
     },
     async createRide(userId, origin, destination) {
-      const { data, error } = await db.rpc("create_demo_ride", {
-        p_user: userId,
-        p_origin: origin,
-        p_destination: destination,
-      });
+      const { data, error } = await db
+        .rpc("create_demo_ride", {
+          p_user: userId,
+          p_origin: origin,
+          p_destination: destination,
+        })
+        .single();
       handle(error);
       return data as Ride;
     },
@@ -110,11 +114,13 @@ export function supabaseRepository(url: string, secret: string): Repository {
       return [...(own.data as Ride[]), ...(queue.data as Ride[])];
     },
     async transition(userId, rideId, action) {
-      const { data, error } = await db.rpc("transition_demo_ride", {
-        p_user: userId,
-        p_ride: rideId,
-        p_action: action,
-      });
+      const { data, error } = await db
+        .rpc("transition_demo_ride", {
+          p_user: userId,
+          p_ride: rideId,
+          p_action: action,
+        })
+        .single();
       handle(error);
       return data as Ride;
     },

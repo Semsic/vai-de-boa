@@ -19,7 +19,7 @@ Um aplicativo de corridas feito por [Semsic](https://github.com/Semsic) para mos
 2. Crie um projeto no Supabase. No SQL Editor, execute a migration [`supabase/migrations/001_demo.sql`](supabase/migrations/001_demo.sql) uma vez. Ela cria tabelas, RLS, permissões e funções transacionais. Use um projeto de desenvolvimento separado para experimentar.
 3. Copie `.env.example` para `.env` e preencha `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `JWT_SECRET` e `RATE_LIMIT_SECRET`. Use segredos aleatórios com pelo menos 32 caracteres; não envie o `.env` ao GitHub. `PROXY_SECRET` é exigido em produção.
 4. Rode `npm run dev`. Acesse `http://localhost:5173`. O Vite encaminha `/api` à API local na porta 4000.
-5. Crie uma conta de passageiro e outra de motorista em outra sessão do navegador para experimentar o ciclo de uma corrida.
+5. Cadastre uma conta de passageiro e entre com e-mail e senha; depois, faça o mesmo com uma conta de motorista em outra sessão do navegador para experimentar o ciclo de uma corrida. O cadastro retorna a mesma mensagem para endereços novos ou existentes.
 
 Comandos úteis: `npm run build`, `npm run typecheck`, `npm run lint` e `npm test`.
 

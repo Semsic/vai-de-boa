@@ -7,12 +7,25 @@ import { createTestDependencies } from "./support/fakes.js";
 describe("API do Vai de Boa", () => {
   it("bloqueia cadastro se o limite for atingido ou o banco do limite falhar", async () => {
     const { app, repo, profiles } = createTestDependencies();
-    const input = { name: "Ana Silva", email: "ana@example.com", password: "senha-segura-123", role: "rider" };
+    const input = {
+      name: "Ana Silva",
+      email: "ana@example.com",
+      password: "senha-segura-123",
+      role: "rider",
+    };
     repo.consumeLimit = async () => false;
-    const limited = await request(app).post("/api/auth/register").set("Origin", "http://localhost:5173").send(input);
+    const limited = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", "http://localhost:5173")
+      .send(input);
     expect(limited.status).toBe(429);
-    repo.consumeLimit = async () => { throw new StorageError("STORAGE_ERROR"); };
-    const unavailable = await request(app).post("/api/auth/register").set("Origin", "http://localhost:5173").send(input);
+    repo.consumeLimit = async () => {
+      throw new StorageError("STORAGE_ERROR");
+    };
+    const unavailable = await request(app)
+      .post("/api/auth/register")
+      .set("Origin", "http://localhost:5173")
+      .send(input);
     expect(unavailable.status).toBe(503);
     expect(profiles).toHaveLength(0);
   });
@@ -69,30 +82,37 @@ describe("API do Vai de Boa", () => {
     expect(response.body.error.code).toBe("ORIGIN_NOT_ALLOWED");
   });
 
-  it("registra e autentica usuário sem retornar hash de senha", async () => {
-    const { app } = createTestDependencies();
+  it("responde igualmente para cadastro novo e repetido e autentica sem expor hash", async () => {
+    const { app, profiles } = createTestDependencies();
     const agent = request.agent(app);
-    const registered = await agent
+    const data = {
+      name: "Ana Silva",
+      email: "ana@example.com",
+      password: "senha-segura-123",
+      role: "rider",
+    };
+    const first = await agent
       .post("/api/auth/register")
       .set("Origin", "http://localhost:5173")
-      .send({
-        name: "Ana Silva",
-        email: "ana@example.com",
-        password: "senha-segura-123",
-        role: "rider",
-      });
-
-    expect(registered.status).toBe(201);
-    expect(registered.body.user).toMatchObject({
-      name: "Ana Silva",
-      role: "rider",
-    });
-    expect(JSON.stringify(registered.body)).not.toContain("password");
-    expect(String(registered.headers["set-cookie"])).toContain("HttpOnly");
-
-    const me = await agent.get("/api/auth/me");
-    expect(me.status).toBe(200);
-    expect(me.body.user.email).toBe("ana@example.com");
+      .send(data);
+    const duplicate = await agent
+      .post("/api/auth/register")
+      .set("Origin", "http://localhost:5173")
+      .send(data);
+    expect(first.status).toBe(202);
+    expect(duplicate.status).toBe(202);
+    expect(duplicate.body).toEqual(first.body);
+    expect(first.headers["set-cookie"]).toBeUndefined();
+    expect(duplicate.headers["set-cookie"]).toBeUndefined();
+    expect(profiles[0]?.password_hash).not.toBe(data.password);
+    const login = await agent
+      .post("/api/auth/login")
+      .set("Origin", "http://localhost:5173")
+      .send({ email: data.email, password: data.password });
+    expect(login.status).toBe(200);
+    expect(JSON.stringify(login.body)).not.toContain("password");
+    expect(String(login.headers["set-cookie"])).toContain("HttpOnly");
+    expect((await agent.get("/api/auth/me")).body.user.email).toBe(data.email);
   });
   it("exige CSRF e não aceita tarifa escolhida pelo navegador", async () => {
     const { app } = createTestDependencies();
@@ -106,7 +126,12 @@ describe("API do Vai de Boa", () => {
         password: "senha-segura-123",
         role: "rider",
       });
-    const token = String(registered.headers["set-cookie"]).match(
+    expect(registered.status).toBe(202);
+    const login = await agent
+      .post("/api/auth/login")
+      .set("Origin", "http://localhost:5173")
+      .send({ email: "ana@example.com", password: "senha-segura-123" });
+    const token = String(login.headers["set-cookie"]).match(
       /csrf=([a-f0-9]+)/,
     )?.[1];
     expect(token).toBeTruthy();

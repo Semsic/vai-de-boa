@@ -105,6 +105,7 @@ function App() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [rides, setRides] = useState<Ride[]>([]);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -173,6 +174,7 @@ function App() {
   async function run(task: () => Promise<void>) {
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       await task();
     } catch (err) {
@@ -188,15 +190,22 @@ function App() {
   function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void run(async () => {
-      const { user: current } = await api<{ user: User }>(`/auth/${screen}`, {
-        method: "POST",
-        body:
-          screen === "register"
-            ? { name, email, password, role }
-            : { email, password },
-      });
-      setPassword("");
-      setUser(current);
+      if (screen === "register") {
+        const { message } = await api<{ message: string }>("/auth/register", {
+          method: "POST",
+          body: { name, email, password, role },
+        });
+        setPassword("");
+        setScreen("login");
+        setNotice(message);
+      } else {
+        const { user: current } = await api<{ user: User }>("/auth/login", {
+          method: "POST",
+          body: { email, password },
+        });
+        setPassword("");
+        setUser(current);
+      }
     });
   }
   function requestRide(event: FormEvent<HTMLFormElement>) {
@@ -273,6 +282,11 @@ function App() {
           <button aria-label="Dispensar aviso" onClick={() => setError("")}>
             ×
           </button>
+        </div>
+      )}
+      {notice && !user && screen === "login" && (
+        <div className="notice" role="status">
+          {notice}
         </div>
       )}
       {loadingSession ? (
