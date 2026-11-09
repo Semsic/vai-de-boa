@@ -2,6 +2,8 @@
 
 Um aplicativo de corridas feito por [Semsic](https://github.com/Semsic) para mostrar um fluxo completo de desenvolvimento web. Passageiros pedem uma viagem e motoristas aceitam e alteram seu andamento. É um projeto independente de demonstração, sem vínculo com empresas de transporte.
 
+[Experimente a demonstração](https://vai-de-boa.netlify.app/) sem cadastro.
+
 **Saldo, tarifa e corridas são fictícios.** Não há pagamento, serviço de transporte real, GPS, geocodificação ou mapa de ruas. O mapa é uma ilustração.
 
 ![Tela inicial do Vai de Boa com mapa ilustrativo](docs/screenshots/tela-inicial.png)
@@ -10,6 +12,7 @@ Um aplicativo de corridas feito por [Semsic](https://github.com/Semsic) para mos
 
 - React, TypeScript e Vite no frontend; Node.js, Express, Zod, bcrypt e JWT na API.
 - PostgreSQL no Supabase: contas, histórico, saldo e limite de requisições compartilhado.
+- Acesso sem cadastro: cada visitante recebe uma sessão isolada e pode alternar entre passageiro e motorista para experimentar uma corrida inteira.
 - Passageiro: cadastro, crédito fictício, solicitação, cancelamento e histórico.
 - Motorista: fila, aceite, início e conclusão da corrida.
 - Netlify publica o frontend e encaminha `/api` ao Render por uma Edge Function. A sessão usa cookie HTTP-only na origem da Netlify.
@@ -31,6 +34,10 @@ Comandos úteis: `npm run build`, `npm run typecheck`, `npm run lint` e `npm tes
 2. **Render:** crie um Web Service deste repositório (ou use `render.yaml`). Configure `NODE_ENV=production`, `APP_ORIGIN` com a origem exata da Netlify sem barra no final, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `JWT_SECRET`, `RATE_LIMIT_SECRET` e `PROXY_SECRET`. Gere segredos independentes e aleatórios de pelo menos 32 caracteres. O health check é `/api/health`.
 3. **Netlify:** importe o mesmo repositório. `netlify.toml` define o build, a pasta publicada e a Edge Function. Em variáveis de ambiente com escopo **Functions**, defina `RENDER_API_URL` como a origem HTTPS do serviço no Render (sem caminho) e `PROXY_SECRET` com o mesmo valor usado no Render. Esses valores ficam no servidor, não em variáveis `VITE_*`. Refaça o deploy após configurá-los.
 4. Confira os fluxos com duas contas de teste, origem, cookie seguro e limites no ambiente publicado. O serviço gratuito do Render pode demorar para responder após inatividade.
+
+## Sessão de visitante
+
+O botão “Experimentar sem cadastro” cria uma sessão privada e temporária na memória da API, com saldo fictício e perfis de passageiro e motorista. Os visitantes não veem as corridas de outras sessões nem de contas cadastradas. Ao sair, após duas horas ou se o serviço reiniciar, os dados são apagados. Use endereços fictícios. A API tem limite de sessões e de criação por IP; o Supabase continua necessário para o controle compartilhado de requisições e para as contas cadastradas. A memória é adequada para uma única instância do Render; para múltiplas instâncias seria necessário um armazenamento compartilhado com expiração.
 
 ## Como funciona o dinheiro de mentirinha
 

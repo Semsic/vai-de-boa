@@ -9,6 +9,7 @@ import helmet from "helmet";
 import bcrypt from "bcrypt";
 import { SignJWT, jwtVerify } from "jose";
 import { z } from "zod";
+import { DemoStore } from "./demo/store.js";
 import { StorageError } from "./repositories/supabase.js";
 import type { Config, Profile, Repository } from "./types.js";
 
@@ -40,12 +41,21 @@ const rideSchema = z
 const actionSchema = z
   .object({ action: z.enum(["accept", "start", "complete", "cancel"]) })
   .strict();
-const publicProfile = ({ id, name, email, role, balance_cents }: Profile) => ({
+type SessionProfile = Profile & { demoSessionId?: string };
+const publicProfile = ({
+  id,
+  name,
+  email,
+  role,
+  balance_cents,
+  demoSessionId,
+}: SessionProfile) => ({
   id,
   name,
   email,
   role,
   balanceCents: balance_cents,
+  isDemo: Boolean(demoSessionId),
 });
 class ApiError extends Error {
   constructor(
@@ -74,6 +84,7 @@ const errors: Record<string, [number, string]> = {
 };
 export function createApp(config: Config, repo: Repository) {
   const app = express();
+  const demos = new DemoStore();
   app.disable("x-powered-by");
   // O Render encerra o TLS no proxy. Confiar na internet inteira seria otimismo demais.
   if (config.secureCookie) app.set("trust proxy", 1);
@@ -92,7 +103,7 @@ export function createApp(config: Config, repo: Repository) {
     maxAge: 2 * 60 * 60 * 1000,
   };
   const key = new TextEncoder().encode(config.jwtSecret);
-  const session = async (req: Request): Promise<Profile> => {
+  const session = async (req: Request): Promise<SessionProfile> => {
     try {
       const token = req.cookies?.session;
       if (typeof token !== "string") throw new Error("missing");
@@ -101,6 +112,14 @@ export function createApp(config: Config, repo: Repository) {
         audience: "vai-de-boa-web",
       });
       if (!payload.sub) throw new Error("missing subject");
+      if (typeof payload.demo === "string") {
+        if (payload.role !== "rider" && payload.role !== "driver")
+          throw new Error("invalid role");
+        const profile = demos.profile(payload.demo, payload.role);
+        if (!profile || profile.id !== payload.sub)
+          throw new Error("expired demo");
+        return { ...profile, demoSessionId: payload.demo };
+      }
       const profile = await repo.findById(payload.sub);
       if (!profile) throw new Error("missing profile");
       return profile;
@@ -125,8 +144,13 @@ export function createApp(config: Config, repo: Repository) {
         "Muitas tentativas. Aguarde um pouco e tente novamente.",
       );
   };
-  const issue = async (res: Response, profile: Profile) => {
-    const token = await new SignJWT({ role: profile.role })
+  const dataStore = (profile: SessionProfile) =>
+    profile.demoSessionId ? demos.repository(profile.demoSessionId) : repo;
+  const issue = async (res: Response, profile: SessionProfile) => {
+    const token = await new SignJWT({
+      role: profile.role,
+      ...(profile.demoSessionId ? { demo: profile.demoSessionId } : {}),
+    })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(profile.id)
       .setIssuer("vai-de-boa")
@@ -178,6 +202,39 @@ export function createApp(config: Config, repo: Repository) {
   });
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
+  });
+  app.post("/api/auth/demo", async (req, res) => {
+    z.object({}).strict().parse(req.body);
+    await rate(`demo:ip:${clientIp(req)}`, 20, 3600);
+    const id = demos.create();
+    if (!id)
+      throw new ApiError(
+        503,
+        "DEMO_CAPACITY",
+        "A demonstração está cheia. Tente novamente mais tarde.",
+      );
+    const profile = { ...demos.profile(id, "rider")!, demoSessionId: id };
+    await issue(res, profile);
+    res.json({ user: publicProfile(profile) });
+  });
+  app.post("/api/auth/demo/switch", async (req, res) => {
+    const user = await session(req);
+    if (!user.demoSessionId)
+      throw new ApiError(403, "FORBIDDEN", errors.FORBIDDEN![1]);
+    const { role } = z
+      .object({ role: z.enum(["rider", "driver"]) })
+      .strict()
+      .parse(req.body);
+    const profile = demos.profile(user.demoSessionId, role);
+    if (!profile)
+      throw new ApiError(
+        401,
+        "UNAUTHENTICATED",
+        "Sua sessão expirou. Comece novamente.",
+      );
+    const next = { ...profile, demoSessionId: user.demoSessionId };
+    await issue(res, next);
+    res.json({ user: publicProfile(next) });
   });
   app.post("/api/auth/register", async (req, res) => {
     const input = registerSchema.parse(req.body);
@@ -234,7 +291,8 @@ export function createApp(config: Config, repo: Repository) {
     res.json({ user: publicProfile(await session(req)) });
   });
   app.post("/api/auth/logout", async (req, res) => {
-    await session(req);
+    const user = await session(req);
+    if (user.demoSessionId) demos.remove(user.demoSessionId);
     const clearOptions = {
       httpOnly: true,
       secure: config.secureCookie,
@@ -247,12 +305,12 @@ export function createApp(config: Config, repo: Repository) {
   });
   app.get("/api/rides", async (req, res) => {
     const user = await session(req);
-    res.json({ rides: await repo.listRides(user.id, user.role) });
+    res.json({ rides: await dataStore(user).listRides(user.id, user.role) });
   });
   app.get("/api/rides/:id", async (req, res) => {
     const user = await session(req);
     const id = z.uuid().parse(req.params.id);
-    const ride = (await repo.listRides(user.id, user.role)).find(
+    const ride = (await dataStore(user).listRides(user.id, user.role)).find(
       (item) =>
         item.id === id &&
         (item.rider_id === user.id || item.driver_id === user.id),
@@ -266,7 +324,7 @@ export function createApp(config: Config, repo: Repository) {
       throw new ApiError(403, "FORBIDDEN", errors.FORBIDDEN![1]);
     await rate(`credit:user:${user.id}`, 10, 3600);
     await rate(`credit:ip:${clientIp(req)}`, 30, 3600);
-    res.json({ balanceCents: await repo.credit(user.id) });
+    res.json({ balanceCents: await dataStore(user).credit(user.id) });
   });
   app.post("/api/rides", async (req, res) => {
     const user = await session(req);
@@ -276,7 +334,11 @@ export function createApp(config: Config, repo: Repository) {
     await rate(`ride:user:${user.id}`, 20, 3600);
     await rate(`ride:ip:${clientIp(req)}`, 80, 3600);
     res.status(201).json({
-      ride: await repo.createRide(user.id, input.origin, input.destination),
+      ride: await dataStore(user).createRide(
+        user.id,
+        input.origin,
+        input.destination,
+      ),
     });
   });
   app.patch("/api/rides/:id/status", async (req, res) => {
@@ -285,7 +347,7 @@ export function createApp(config: Config, repo: Repository) {
     const { action } = actionSchema.parse(req.body);
     await rate(`transition:user:${user.id}`, 60, 3600);
     await rate(`transition:ip:${clientIp(req)}`, 150, 3600);
-    res.json({ ride: await repo.transition(user.id, id, action) });
+    res.json({ ride: await dataStore(user).transition(user.id, id, action) });
   });
   app.use((_req, _res, next) =>
     next(new ApiError(404, "NOT_FOUND", "Caminho não encontrado.")),

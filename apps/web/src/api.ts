@@ -4,6 +4,7 @@ export interface User {
   email: string;
   role: "rider" | "driver";
   balanceCents: number;
+  isDemo: boolean;
 }
 export interface Ride {
   id: string;

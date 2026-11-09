@@ -187,6 +187,27 @@ function App() {
       setBusy(false);
     }
   }
+  function startDemo() {
+    void run(async () => {
+      const { user: visitor } = await api<{ user: User }>("/auth/demo", {
+        method: "POST",
+        body: {},
+      });
+      setRides([]);
+      setUser(visitor);
+    });
+  }
+  function switchDemoRole() {
+    if (!user) return;
+    void run(async () => {
+      const { user: visitor } = await api<{ user: User }>("/auth/demo/switch", {
+        method: "POST",
+        body: { role: user.role === "rider" ? "driver" : "rider" },
+      });
+      setRides([]);
+      setUser(visitor);
+    });
+  }
   function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void run(async () => {
@@ -310,15 +331,23 @@ function App() {
             </p>
             <button
               className="primary hero-cta"
+              onClick={startDemo}
+              disabled={busy}
+            >
+              <MovingBorder />
+              <span>
+                {busy ? "Preparando…" : "Experimentar sem cadastro"}{" "}
+                <ArrowRight size={19} />
+              </span>
+            </button>
+            <button
+              className="under-link"
               onClick={() => {
                 setError("");
                 setScreen("register");
               }}
             >
-              <MovingBorder />
-              <span>
-                Criar conta <ArrowRight size={19} />
-              </span>
+              Criar conta <ArrowUpRight size={15} />
             </button>
             <button
               className="under-link"
@@ -528,6 +557,22 @@ function App() {
               <CarFront size={18} /> Modo demonstração
             </div>
           </div>
+          {user.isDemo && (
+            <div className="demo-session" role="status">
+              <p>
+                <strong>Sessão de visitante.</strong> Seus dados são isolados e
+                temporários; podem ser apagados quando o servidor reiniciar ou a
+                sessão expirar. Use endereços fictícios.
+              </p>
+              <button
+                className="secondary"
+                disabled={busy}
+                onClick={switchDemoRole}
+              >
+                Trocar para {user.role === "rider" ? "motorista" : "passageiro"}
+              </button>
+            </div>
+          )}
           <div className="dashboard-grid">
             <section className="dashboard-main">
               {user.role === "rider" ? (

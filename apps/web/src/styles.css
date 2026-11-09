@@ -967,3 +967,30 @@ h2 {
     order: initial;
   }
 }
+
+.demo-session {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid #c8ddd1;
+  border-radius: 12px;
+  background: #f0f7f1;
+  color: #254a3a;
+}
+.demo-session p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.demo-session button {
+  flex-shrink: 0;
+}
+@media (max-width: 600px) {
+  .demo-session {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

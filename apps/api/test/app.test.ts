@@ -5,6 +5,72 @@ import { StorageError } from "../src/repositories/supabase.js";
 import { createTestDependencies } from "./support/fakes.js";
 
 describe("API do Vai de Boa", () => {
+  it("isola visitantes e permite experimentar os dois lados de uma corrida", async () => {
+    const { app, profiles } = createTestDependencies();
+    const a = request.agent(app);
+    const b = request.agent(app);
+    const origin = "http://localhost:5173";
+    const startA = await a
+      .post("/api/auth/demo")
+      .set("Origin", origin)
+      .send({});
+    const startB = await b
+      .post("/api/auth/demo")
+      .set("Origin", origin)
+      .send({});
+    expect(startA.status).toBe(200);
+    expect(startB.status).toBe(200);
+    expect(startA.body.user.isDemo).toBe(true);
+    expect(profiles).toHaveLength(0);
+    let csrf = String(startA.headers["set-cookie"]).match(
+      /csrf=([a-f0-9]+)/,
+    )![1]!;
+    const created = await a
+      .post("/api/rides")
+      .set("Origin", origin)
+      .set("X-CSRF-Token", csrf)
+      .send({ origin: "Rua Um", destination: "Rua Dois" });
+    expect(created.status).toBe(201);
+    expect((await b.get("/api/rides")).body.rides).toHaveLength(0);
+    const switched = await a
+      .post("/api/auth/demo/switch")
+      .set("Origin", origin)
+      .set("X-CSRF-Token", csrf)
+      .send({ role: "driver" });
+    expect(switched.status).toBe(200);
+    csrf = String(switched.headers["set-cookie"]).match(
+      /csrf=([a-f0-9]+)/,
+    )![1]!;
+    expect((await a.get("/api/rides")).body.rides).toHaveLength(1);
+    for (const action of ["accept", "start", "complete"]) {
+      const result = await a
+        .patch(`/api/rides/${created.body.ride.id}/status`)
+        .set("Origin", origin)
+        .set("X-CSRF-Token", csrf)
+        .send({ action });
+      expect(result.status).toBe(200);
+    }
+    expect((await b.get("/api/rides")).body.rides).toHaveLength(0);
+    const back = await a
+      .post("/api/auth/demo/switch")
+      .set("Origin", origin)
+      .set("X-CSRF-Token", csrf)
+      .send({ role: "rider" });
+    expect(back.body.user.balanceCents).toBe(8200);
+    expect((await a.get("/api/rides")).body.rides[0].status).toBe("completed");
+  });
+  it("limita a criação de sessões de demonstração", async () => {
+    const { app, repo } = createTestDependencies();
+    repo.consumeLimit = async () => false;
+    expect(
+      (
+        await request(app)
+          .post("/api/auth/demo")
+          .set("Origin", "http://localhost:5173")
+          .send({})
+      ).status,
+    ).toBe(429);
+  });
   it("bloqueia cadastro se o limite for atingido ou o banco do limite falhar", async () => {
     const { app, repo, profiles } = createTestDependencies();
     const input = {

@@ -11,6 +11,46 @@ describe("tela inicial", () => {
         .mockResolvedValue({ ok: false, status: 401, json: async () => ({}) }),
     );
   });
+  it("abre a demonstração e troca de perfil sem cadastro", async () => {
+    const rider = {
+      id: "rider",
+      name: "Visitante",
+      role: "rider",
+      balanceCents: 10000,
+      isDemo: true,
+    };
+    const driver = {
+      ...rider,
+      id: "driver",
+      name: "Motorista de teste",
+      role: "driver",
+    };
+    let current = rider;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/auth/demo/switch")) current = driver;
+        const body = url.endsWith("/auth/session")
+          ? { user: null }
+          : url.endsWith("/rides")
+            ? { rides: [] }
+            : { user: current };
+        return { ok: true, status: 200, json: async () => body };
+      }),
+    );
+    render(<App />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /experimentar sem cadastro/i }),
+    );
+    expect(await screen.findByText(/sessão de visitante/i)).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /trocar para motorista/i }),
+    );
+    expect(await screen.findByText("ÁREA DO MOTORISTA")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /trocar para passageiro/i }),
+    ).toBeInTheDocument();
+  });
   it("explica a demonstração e abre o cadastro", async () => {
     render(<App />);
     expect(
