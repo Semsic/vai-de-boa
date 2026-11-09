@@ -4,6 +4,8 @@ Um aplicativo de corridas feito por [Semsic](https://github.com/Semsic) para mos
 
 **Saldo, tarifa e corridas são fictícios.** Não há pagamento, serviço de transporte real, GPS, geocodificação ou mapa de ruas. O mapa é uma ilustração.
 
+![Tela inicial do Vai de Boa com mapa ilustrativo](docs/screenshots/tela-inicial.png)
+
 ## O que tem aqui
 
 - React, TypeScript e Vite no frontend; Node.js, Express, Zod, bcrypt e JWT na API.
