@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: vai-de-boa-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build --workspace @vai-de-boa/api
+    startCommand: npm run start --workspace @vai-de-boa/api
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: RATE_LIMIT_SECRET
+        sync: false
+      - key: PROXY_SECRET
+        sync: false

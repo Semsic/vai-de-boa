@@ -1,0 +1,15 @@
+[build]
+  command = "npm run build --workspace @vai-de-boa/web"
+  publish = "apps/web/dist"
+
+[[edge_functions]]
+  function = "api-proxy"
+  path = "/api/*"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
