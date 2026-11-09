@@ -1,0 +1,37 @@
+{
+  "name": "vai-de-boa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aplicação open source demonstrativa de corridas locais.",
+  "engines": {
+    "node": ">=24.21.0 <25"
+  },
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB -c blue,green \"npm run dev --workspace @vai-de-boa/api\" \"npm run dev --workspace @vai-de-boa/web\"",
+    "build": "npm run build --workspace @vai-de-boa/api && npm run build --workspace @vai-de-boa/web",
+    "typecheck": "npm run typecheck --workspace @vai-de-boa/api && npm run typecheck --workspace @vai-de-boa/web",
+    "lint": "eslint apps/api/src apps/api/test apps/web/src",
+    "test": "npm run test --workspace @vai-de-boa/api && npm run test --workspace @vai-de-boa/web"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.7",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "typescript-eslint": "8.36.0",
+    "vitest": "4.1.12"
+  },
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "esbuild@0.28.2": true
+  },
+  "overrides": {
+    "minimatch": "^11.0.5",
+    "vite": "7.3.8"
+  },
+  "type": "module"
+}
